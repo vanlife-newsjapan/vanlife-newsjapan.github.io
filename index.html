@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>VAN LIFE NEWS 一覧</title>
+  <style>
+    :root {
+      --navy: #061F32;
+      --teal: #12A2B0;
+      --gold: #E4C174;
+      --bg: #F2F5F7;
+      --card: #FFFFFF;
+      --text: #1B2733;
+      --muted: #6B7785;
+      --line: #DDE3E8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--navy);
+      color: #fff;
+      padding: 12px 16px 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    }
+    .brand { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: .08em; }
+    h1 { margin: 2px 0 8px; font-size: 19px; }
+    .search {
+      width: 100%;
+      padding: 11px 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px; /* iPhoneで入力時に拡大されない大きさ */
+    }
+    .chips { display: flex; gap: 6px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
+    .chip {
+      flex: none;
+      border: 1px solid rgba(255, 255, 255, .35);
+      background: transparent;
+      color: #fff;
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 13px;
+    }
+    .chip.on { background: var(--teal); border-color: var(--teal); font-weight: 700; }
+    main { padding: 10px 12px 40px; max-width: 720px; margin: 0 auto; }
+    .summary-line { color: var(--muted); font-size: 13px; margin: 4px 4px 10px; }
+    .day { font-size: 13px; font-weight: 700; color: var(--muted); margin: 18px 4px 6px; }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+    }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .tag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+    .cat { background: var(--navy); color: #fff; }
+    .st-published { background: #D8F3EC; color: #0B6E58; }
+    .st-skipped { background: #EEF0F2; color: #5B6570; }
+    .st-failed { background: #FDE2E1; color: #B42318; }
+    .st-pending { background: #FFF4D6; color: #8A5A00; }
+    .st-retry { background: #FFE7CC; color: #9A4A00; }
+    .st-needs_review { background: #B42318; color: #fff; }
+    .st-closed { background: #EEF0F2; color: #5B6570; }
+    .day.review { color: #B42318; }
+    .card.review { border: 2px solid #B42318; }
+    .problem { color: #B42318; font-size: 12px; font-weight: 700; margin-top: 4px; }
+    .hook { color: #B07D10; font-weight: 700; font-size: 13px; }
+    .headline { font-size: 17px; font-weight: 700; margin: 2px 0 6px; }
+    .text { margin: 0 0 8px; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .original { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .btn-main { background: var(--teal); color: #fff; }
+    .btn-sub { background: #fff; color: var(--navy); border: 1px solid var(--line); }
+    .btn-request { background: #B07D10; color: #fff; border: 0; font-family: inherit; cursor: pointer; }
+    .btn-request:disabled { opacity: .6; }
+    .btn-wait { background: #FFF4D6; color: #8A5A00; }
+    mark { background: #FFE9A8; color: inherit; padding: 0 1px; }
+    .empty, .loading, .error { text-align: center; color: var(--muted); padding: 40px 10px; }
+    .error { color: #B42318; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">VAN LIFE NEWS JAPAN ／ 運営用</div>
+    <h1>ニュース一覧</h1>
+    <input id="q" class="search" type="search" placeholder="キーワードで検索（見出し・要約・配信元）" autocomplete="off">
+    <div class="chips" id="statusChips"></div>
+    <div class="chips" id="categoryChips"></div>
+  </header>
+
+  <main>
+    <div class="summary-line" id="summaryLine"></div>
+    <div id="list"><div class="loading">読み込み中…</div></div>
+  </main>
+
+  <script>
+    // この画面は Google の外（GitHub Pages）に置き、データだけを Apps Script から読む（2026-11-19）。
+    // 合言葉は URL の #k=…（または ?key=…）。一度開けばこのスマホに覚えておく。
+    const API = 'https://script.google.com/macros/s/AKfycbyNB9zDwyt-6ATc6tzC1b3pI1LyM7oiEscz5g5aN0JcC3om5pOBRxM75FOoH0uYe17rWg/exec';
+    const ACCESS_KEY = (() => {
+      const fromUrl = new URLSearchParams(location.hash.slice(1)).get('k') || new URLSearchParams(location.search).get('key');
+      try {
+        if (fromUrl) localStorage.setItem('vanlife_key', fromUrl);
+        return fromUrl || localStorage.getItem('vanlife_key') || '';
+      } catch (e) { return fromUrl || ''; }
+    })();
+    // Google のログイン状態を送らない（credentials: 'omit'）。送ると複数アカウントのときに開けなくなる
+    async function callApi(params) {
+      const url = API + '?' + new URLSearchParams({ ...params, key: ACCESS_KEY }).toString();
+      const res = await fetch(url, { credentials: 'omit', redirect: 'follow' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    }
+  </script>
+  <script>
+    // 状態・カテゴリの絞り込み（1つずつ選ぶ。「すべて」で解除）
+    const STATUSES = [
+      ['', 'すべて'], ['needs_review', '要確認'], ['retry', '再試行待ち'], ['published', '記事化'],
+      ['skipped', '見送り'], ['pending', '未処理'], ['failed', '失敗'], ['closed', '確認して終了'],
+    ];
+    const CATEGORIES = ['', 'NEWS', 'EVENT', 'RV PARK', 'GEAR'];
+    const state = { q: '', status: '', category: '', items: [], generatedAt: '', requests: {} };
+
+    function el(tag, className, text) {
+      // 外部のニュースの文字は、HTMLとして解釈させずに文字として入れる
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = text;
+      return node;
+    }
+
+    function highlighted(tag, className, text) {
+      // 検索語に一致する部分を <mark> で強調する（文字はtextContentで入れる）
+      const node = el(tag, className);
+      const q = state.q.trim();
+      const value = text || '';
+      if (!q) { node.textContent = value; return node; }
+      const lower = value.toLowerCase();
+      const needle = q.toLowerCase();
+      let start = 0;
+      let index = lower.indexOf(needle);
+      while (index !== -1) {
+        node.appendChild(document.createTextNode(value.slice(start, index)));
+        node.appendChild(el('mark', null, value.slice(index, index + q.length)));
+        start = index + q.length;
+        index = lower.indexOf(needle, start);
+      }
+      node.appendChild(document.createTextNode(value.slice(start)));
+      return node;
+    }
+
+    function renderChips() {
+      const statusBox = document.getElementById('statusChips');
+      statusBox.replaceChildren(...STATUSES.map(([value, label]) => {
+        const count = value ? state.items.filter(item => item.status === value).length : state.items.length;
+        const chip = el('button', 'chip' + (state.status === value ? ' on' : ''), `${label} ${count}`);
+        chip.onclick = () => { state.status = value; render(); };
+        return chip;
+      }));
+
+      const categoryBox = document.getElementById('categoryChips');
+      categoryBox.replaceChildren(...CATEGORIES.map(value => {
+        const chip = el('button', 'chip' + (state.category === value ? ' on' : ''), value || '全カテゴリ');
+        chip.onclick = () => { state.category = value; render(); };
+        return chip;
+      }));
+    }
+
+    function matches(item) {
+      if (state.status && item.status !== state.status) return false;
+      if (state.category && item.category !== state.category) return false;
+      const q = state.q.trim().toLowerCase();
+      if (!q) return true;
+      return [item.headline, item.original_title, item.summary, item.source, item.hook, item.note]
+        .some(value => (value || '').toLowerCase().includes(q));
+    }
+
+    function card(item) {
+      const box = el('article', 'card' + (item.status === 'needs_review' ? ' review' : ''));
+      const tags = el('div', 'tags');
+      tags.appendChild(el('span', 'tag cat', item.category));
+      tags.appendChild(el('span', 'tag st-' + item.status, item.status_label));
+      if (item.news_score !== null && item.news_score !== undefined) tags.appendChild(el('span', 'tag st-skipped', `スコア ${item.news_score}`));
+      box.appendChild(tags);
+
+      if (item.hook) box.appendChild(el('div', 'hook', item.hook));
+      box.appendChild(highlighted('div', 'headline', item.headline));
+      if (item.summary) box.appendChild(highlighted('p', 'text', item.summary));
+
+      const meta = [item.source, item.collected_at, item.brand_score !== null && item.brand_score !== undefined ? `ブランド ${item.brand_score}` : '']
+        .filter(Boolean).join(' ・ ');
+      box.appendChild(el('div', 'meta', meta));
+      if (item.original_title && item.original_title !== item.headline) {
+        box.appendChild(highlighted('div', 'original', '元タイトル：' + item.original_title));
+      }
+      // 再処理：失敗している段階・理由・回数と、次にやり直す日（docs/REPROCESSING.md）
+      if (item.stage_note) {
+        const next = item.next_retry_on ? `（次は ${item.next_retry_on} にやり直し）` : '';
+        box.appendChild(el('div', 'problem', item.stage_note + next));
+      } else if (item.note) {
+        box.appendChild(el('div', 'original', 'メモ：' + item.note));
+      }
+      if (item.review_note) box.appendChild(el('div', 'original', '確認メモ：' + item.review_note));
+
+      const actions = el('div', 'actions');
+      if (item.url) {
+        const link = el('a', 'btn btn-main', '元記事を開く');
+        link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        actions.appendChild(link);
+      }
+      if (item.materials_folder) {
+        const folder = el('a', 'btn btn-sub', 'SNS素材を探す');
+        folder.href = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(item.materials_folder);
+        folder.target = '_blank'; folder.rel = 'noopener noreferrer';
+        actions.appendChild(folder);
+      }
+      if (!item.materials_folder) actions.appendChild(requestButton(item));
+      if (actions.children.length) box.appendChild(actions);
+      return box;
+    }
+
+    // 「この記事で素材を作る」：PCの VAN LIFE OS が15分おきに依頼を読んで、SNS素材を作る（2026-11-09）
+    function requestButton(item) {
+      const request = state.requests[item.id];
+      if (request && request.status === 'pending') {
+        return el('span', 'btn btn-wait', '素材を作成待ち（PCが動いていれば15分ほどでできます）');
+      }
+      const label = request && request.status === 'failed' ? '素材を作れませんでした・もう一度依頼する' : 'この記事で素材を作る';
+      const button = el('button', 'btn btn-request', label);
+      button.onclick = () => {
+        button.disabled = true;
+        button.textContent = '依頼しています…';
+        callApi({ api: 'request', id: item.id, title: item.headline })
+          .then(data => {
+            (data.requests || []).forEach(r => { state.requests[r.id] = r; });
+            render();
+          })
+          .catch(error => {
+            button.disabled = false;
+            button.textContent = '依頼できませんでした：' + error.message;
+          });
+      };
+      return button;
+    }
+
+    function render() {
+      renderChips();
+      const list = document.getElementById('list');
+      const shown = state.items.filter(matches);
+      document.getElementById('summaryLine').textContent =
+        `${shown.length}件を表示（全${state.items.length}件）・更新 ${state.generatedAt.replace('T', ' ')}`;
+
+      if (!shown.length) { list.replaceChildren(el('div', 'empty', '該当するニュースはありません')); return; }
+
+      const nodes = [];
+      // 要確認は、日付に関係なく一番上にまとめて出す
+      const review = shown.filter(item => item.status === 'needs_review');
+      if (review.length && state.status !== 'needs_review') {
+        nodes.push(el('div', 'day review', `要確認 ${review.length}件`));
+        review.forEach(item => nodes.push(card(item)));
+      }
+      let day = null;
+      shown.filter(item => !review.includes(item) || state.status === 'needs_review').forEach(item => {
+        const date = (item.collected_at || '').slice(0, 10);
+        if (date !== day) { day = date; nodes.push(el('div', 'day', date || '日付なし')); }
+        nodes.push(card(item));
+      });
+      list.replaceChildren(...nodes);
+    }
+
+    let timer = null;
+    document.getElementById('q').addEventListener('input', event => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { state.q = event.target.value; render(); }, 150);
+    });
+
+    if (!ACCESS_KEY) {
+      document.getElementById('list').replaceChildren(el('div', 'error', 'このページを開く権限がありません。LINE の「ニュース一覧を開く」から開いてください。'));
+    } else {
+      callApi({ api: 'news' })
+        .then(data => {
+          state.items = data.items || [];
+          state.generatedAt = data.generated_at || '';
+          (data.requests || []).forEach(r => { state.requests[r.id] = r; });
+          render();
+        })
+        .catch(error => {
+          document.getElementById('list').replaceChildren(el('div', 'error', '読み込みに失敗しました：' + error.message));
+        });
+    }
+  </script>
+</body>
+</html>
